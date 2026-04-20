@@ -7,8 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
-from fastapi.responses import Response, FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from twilio.twiml.voice_response import VoiceResponse, Gather
@@ -666,20 +665,36 @@ async def handle_respond(request: Request, SpeechResult: str = Form(None), CallS
     return Response(content=str(response), media_type="text/xml")
 
 # --- SERVE FRONTEND STATIC FILES (Production) ---
-# Mount the built frontend. This MUST come after all /api routes.
-frontend_dir = Path(__file__).parent / "dist"
-if frontend_dir.exists():
-    app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+# These routes MUST come after all /api and /voice routes.
+# We always register them — they check the filesystem at request time.
+FRONTEND_DIR = Path(__file__).parent / "dist"
+
+@app.get("/")
+async def serve_root():
+    """Serve the frontend index.html at root."""
+    index = FRONTEND_DIR / "index.html"
+    if index.exists():
+        return FileResponse(str(index), media_type="text/html")
+    # If frontend not built, return a helpful JSON message
+    return {"message": "GuniVox API is running. Frontend not built yet — run 'npm run build'."}
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    """Serve static files from dist/ or fall back to index.html for SPA routing."""
+    if not full_path:
+        return await serve_root()
     
-    # Serve index.html for all non-API, non-file routes (SPA fallback)
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # If the path matches a static file, serve it
-        file_path = frontend_dir / full_path
-        if full_path and file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
-        # Otherwise serve index.html (SPA client-side routing)
-        return FileResponse(str(frontend_dir / "index.html"))
+    # Try to serve the exact file (JS, CSS, images, etc.)
+    file_path = FRONTEND_DIR / full_path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(str(file_path))
+    
+    # For any other path, serve index.html (SPA client-side routing)
+    index = FRONTEND_DIR / "index.html"
+    if index.exists():
+        return FileResponse(str(index), media_type="text/html")
+    
+    raise HTTPException(status_code=404, detail="Not found")
 
 if __name__ == "__main__":
     import uvicorn
