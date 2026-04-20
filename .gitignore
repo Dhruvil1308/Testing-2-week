@@ -5,9 +5,9 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Build output
-dist/
-dist-ssr/
+# Build output (Committing to repo to simplify Render deployment)
+# dist/
+# dist-ssr/
 
 # Environment & Secrets
 .env
