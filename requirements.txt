@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+gunicorn
+twilio
+openai
+python-dotenv
+openpyxl
+pydantic
+python-multipart
+requests
