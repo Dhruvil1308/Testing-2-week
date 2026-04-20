@@ -555,6 +555,8 @@ REMEMBER: NAME, INTEREST, and STATUS must appear in EVERY response. Once you lea
         return SYSTEM_PROMPT
 
 def get_openai_response(call_sid: str, user_input: str) -> Dict[str, str]:
+    import time
+    
     if call_sid not in sessions:
         # Inject dynamic course data at start of session
         dynamic_prompt = get_system_prompt_with_courses()
@@ -563,17 +565,23 @@ def get_openai_response(call_sid: str, user_input: str) -> Dict[str, str]:
     sessions[call_sid].append({"role": "user", "content": user_input})
 
     try:
+        start_time = time.time()
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=sessions[call_sid],
             temperature=0.7,
             max_tokens=250
         )
+        end_time = time.time()
+        
+        latency = round(end_time - start_time, 2)
+        logger.info(f"⏱️ OpenAI Response Latency for {call_sid}: {latency} seconds")
+
         raw_text = response.choices[0].message.content.strip()
         sessions[call_sid].append({"role": "assistant", "content": raw_text})
         
         # Parse Structured Data
-        ai_data = {"lang": "en-IN", "text": raw_text}
+        ai_data = {"lang": "en-IN", "text": raw_text, "latency": str(latency)}
         
         # Lang & Text
         # Robust regex to capture text even if format is slightly off
@@ -619,7 +627,7 @@ def get_openai_response(call_sid: str, user_input: str) -> Dict[str, str]:
 
     except Exception as e:
         logger.error(f"OpenAI Error: {e}")
-        return {"lang": "en-IN", "text": "I'm sorry, I didn't catch that."}
+        return {"lang": "en-IN", "text": "I'm sorry, I didn't catch that.", "latency": "0"}
 
 @app.post("/voice")
 async def handle_voice(request: Request):
